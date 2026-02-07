@@ -1,0 +1,71 @@
+services:
+  signaling:
+    build: ./docker/signaling
+    environment:
+      - PORT=${SIGNALING_PORT:-8080}
+      - WS_PATH=${SIGNALING_WS_PATH:-/ws}
+      - ROOM_TTL_MS=${SIGNALING_ROOM_TTL_MS:-600000}
+      - RESUME_TTL_MS=${SIGNALING_RESUME_TTL_MS:-120000}
+      - MAX_PEERS=${SIGNALING_MAX_PEERS:-2}
+      - PING_INTERVAL_MS=${SIGNALING_PING_INTERVAL_MS:-15000}
+    expose:
+      - "8080"
+    restart: unless-stopped
+
+  client:
+    build: ./docker/client
+    volumes:
+      - ./client/dist:/usr/share/nginx/html:ro
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    environment:
+      - DOMAIN=${DOMAIN}
+      - ACME_EMAIL=${ACME_EMAIL}
+      - SIGNALING_UPSTREAM=signaling:8080
+      - CLIENT_UPSTREAM=client:80
+      - SIGNALING_WS_PATH=${SIGNALING_WS_PATH:-/ws}
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - signaling
+      - client
+    restart: unless-stopped
+
+  sunshine:
+    build: ./docker/sunshine
+    network_mode: host
+    environment:
+      - DISPLAY=${SUNSHINE_DISPLAY:-:99}
+      - VIRTUAL_RESOLUTION=1280x720
+      - SUNSHINE_CONFIG=${SUNSHINE_CONFIG:-/config/sunshine.conf}
+    volumes:
+      - ./data/sunshine:/config
+    devices:
+      - /dev/uinput
+    cap_add:
+      - SYS_ADMIN
+      - SYS_NICE
+    gpus: all
+    restart: unless-stopped
+
+  turn:
+    image: instrumentisto/coturn
+    profiles: ["turn"]
+    network_mode: host
+    volumes:
+      - ./config/turn/turnserver.conf:/etc/turnserver.conf:ro
+    command:
+      - "-c"
+      - "/etc/turnserver.conf"
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
