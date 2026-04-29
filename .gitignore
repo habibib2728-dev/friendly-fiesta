@@ -1,7 +1,8 @@
-.env
-data/
+.next/
 node_modules/
-client/dist/*
-!client/dist/index.html
+out/
+.env*
+.vercel/
 *.log
+*.tgz
 .DS_Store
